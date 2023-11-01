@@ -1,0 +1,6 @@
+.border {
+  border: 1px solid red;
+}
+.demo1-container {
+  box-sizing: border-box;
+}
