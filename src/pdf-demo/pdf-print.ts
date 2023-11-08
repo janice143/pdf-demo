@@ -63,10 +63,7 @@ export async function outputPDF({
   filename,
 
   /** a4值的方向: portrait or landscape */
-  orientation = 'portrait' as 'portrait' | 'landscape',
-
-  /** 渲染页脚的逻辑 */
-  renderFooter = (cur: number, sum: number) => true
+  orientation = 'portrait' as 'portrait' | 'landscape'
 }) {
   if (!(element instanceof HTMLElement)) {
     return;
@@ -97,48 +94,6 @@ export async function outputPDF({
   // 一页的高度， 转换宽度为一页元素的宽度
   const { width, height, data } = await toCanvas(element, contentWidth);
 
-  // 添加页脚
-  async function addHeader(
-    headerElement: HTMLElement,
-    headerContentWidth: number
-  ) {
-    const { height: headerHeight, data: headerData } = await toCanvas(
-      headerElement,
-      headerContentWidth
-    );
-    headerData &&
-      pdf.addImage(headerData, 'JPEG', 0, 0, headerContentWidth, headerHeight);
-  }
-
-  // 添加页眉
-  async function addFooter(
-    pageNum: number,
-    now: number,
-    footerElement: HTMLElement,
-    footerContentWidth: number
-  ) {
-    // const newFooter = footerElement.cloneNode(true) as HTMLElement;
-    // // TODO: 页脚加上页码信息
-    // // newFooter.querySelector('.pdf-footer-page').innerText = now;
-    // // newFooter.querySelector('.pdf-footer-page-count').innerText = pageNum;
-    // document.documentElement.append(newFooter);
-    const newFooter = footer;
-    const { height: footerHeight, data: footerData } = await toCanvas(
-      newFooter,
-      contentWidth
-    );
-    if (footerData && renderFooter(now, pageNum)) {
-      pdf.addImage(
-        footerData,
-        'JPEG',
-        0,
-        A4_HEIGHT - footerHeight,
-        footerContentWidth,
-        footerHeight
-      );
-    }
-  }
-
   // 添加
   function addImage(
     _x: number,
@@ -163,14 +118,38 @@ export async function outputPDF({
   }
 
   // 页脚元素 经过转换后在PDF页面的高度
-  const { height: tFooterHeight } = footer
+  const { height: tFooterHeight, data: headerData } = footer
     ? await toCanvas(footer, contentWidth)
-    : { height: 0 };
+    : { height: 0, data: undefined };
 
   // 页眉元素 经过转换后在PDF的高度
-  const { height: tHeaderHeight } = header
+  const { height: tHeaderHeight, data: footerData } = header
     ? await toCanvas(header, contentWidth)
-    : { height: 0 };
+    : { height: 0, data: undefined };
+
+  // 添加页脚
+  async function addHeader(headerElement: HTMLElement) {
+    headerData &&
+      pdf.addImage(headerData, 'JPEG', 0, 0, contentWidth, tHeaderHeight);
+  }
+
+  // 添加页眉
+  async function addFooter(
+    pageNum: number,
+    now: number,
+    footerElement: HTMLElement
+  ) {
+    if (footerData) {
+      pdf.addImage(
+        footerData,
+        'JPEG',
+        0,
+        A4_HEIGHT - tFooterHeight,
+        contentWidth,
+        tFooterHeight
+      );
+    }
+  }
 
   // 距离PDF左边的距离，/ 2 表示居中
   const baseX = (A4_WIDTH - contentWidth) / 2; // 预留空间给左边
@@ -202,15 +181,15 @@ export async function outputPDF({
 
   // 遍历正常的元素节点
   function traversingNodes(nodes) {
-    for (let i = 0; i < nodes.length; ++i) {
-      const one = nodes[i];
+    for (const element of nodes) {
+      const one = element;
 
       /** */
       /** 注意： 可以根据业务需求，判断其他场景的分页，本代码只判断表格的分页场景 */
       /** */
 
       // table的每一行元素也是深度终点
-      const isTableCol =
+      const isTableRow =
         one.classList && one.classList.contains('ant4-table-row');
 
       // 对需要处理分页的元素，计算是否跨界，若跨界，则直接将顶部位置作为分页位置，进行分页，且子元素不需要再进行判断
@@ -224,10 +203,10 @@ export async function outputPDF({
       const rateOffsetHeight = rate * offsetHeight;
 
       // 对于深度终点元素进行处理
-      if (isTableCol) {
+      if (isTableRow) {
         // dom高度转换成生成pdf的实际高度
         // 代码不考虑dom定位、边距、边框等因素，需在dom里自行考虑，如将box-sizing设置为border-box
-        updatePos(rateOffsetHeight, top);
+        updateTablePos(rateOffsetHeight, top);
       }
       // 对于普通元素，则判断是否高度超过分页值，并且深入
       else {
@@ -236,6 +215,7 @@ export async function outputPDF({
         // 遍历子节点
         traversingNodes(one.childNodes);
       }
+      updatePos();
     }
   }
 
@@ -256,7 +236,7 @@ export async function outputPDF({
   // 需要考虑分页元素，则需要考虑两种情况
   // 1. 普通达顶情况，如上
   // 2. 当前距离顶部高度加上元素自身高度 大于 整页高度，则需要载入一个分页点
-  function updatePos(eHeight: number, top: number) {
+  function updateTablePos(eHeight: number, top: number) {
     // 如果高度已经超过当前页，则证明可以分页了
     if (
       top - (pages.length > 0 ? pages[pages.length - 1] : 0) >=
@@ -279,12 +259,11 @@ export async function outputPDF({
   // 深度遍历节点的方法
   traversingNodes(element.childNodes);
 
-  // 此处逻辑可能有问题：会出现空白页
-  // 可能会存在遍历到底部元素为深度节点，可能存在最后一页位置未截取到的情况
-  // if (pages[pages.length - 1] + originalPageHeight < height) {
-  //   pages.push(pages[pages.length - 1] + originalPageHeight);
-  // }
-  // console.log({ pages, contentWidth, width,height })
+  function updatePos() {
+    while (pages[pages.length - 1] + originalPageHeight < height) {
+      pages.push(pages[pages.length - 1] + originalPageHeight);
+    }
+  }
 
   // 对pages进行一个值的修正，因为pages生成是根据根元素来的，根元素并不是我们实际要打印的元素，而是element，
   // 所以要把它修正，让其值是以真实的打印元素顶部节点为准
@@ -292,8 +271,6 @@ export async function outputPDF({
 
   // 根据分页位置 开始分页
   for (let i = 0; i < newPages.length; ++i) {
-    // message.success(`共${pages.length}页， 生成第${i + 1}页`);
-
     // 根据分页位置新增图片
     addImage(
       baseX,
@@ -322,12 +299,12 @@ export async function outputPDF({
 
     // 添加页眉
     if (header) {
-      await addHeader(header, A4_WIDTH);
+      await addHeader(header);
     }
 
     // 添加页脚
     if (footer) {
-      await addFooter(newPages.length, i + 1, footer, A4_WIDTH);
+      await addFooter(newPages.length, i + 1, footer);
     }
 
     // 若不是最后一页，则分页
