@@ -6,7 +6,7 @@ import { outputPDF } from './pdf-print';
 
 const items: TabsProps['items'] = [
   {
-    key: '',
+    key: '1',
     label: '单页',
     children: <PdfDemo1 />
   },
@@ -34,14 +34,14 @@ const items: TabsProps['items'] = [
 
 const PdfDownload = () => {
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState();
+  const [tab, setTab] = useState('1');
   const filename = 'test test tes';
 
   const handleChange = (key) => {
     setTab(key);
   };
 
-  const handleDownloadSupplier = () => {
+  const handleDownload = () => {
     setLoading(true);
     htmlToPdf({
       contentId: PDF_PRINT_IDS[`content${tab}`],
@@ -87,15 +87,11 @@ const PdfDownload = () => {
   return (
     <Row justify={'center'} style={{ flexDirection: 'column', margin: 20 }}>
       <div style={{ margin: '10px auto' }}>
-        <Button
-          type="primary"
-          onClick={handleDownloadSupplier}
-          loading={loading}
-        >
+        <Button type="primary" onClick={handleDownload} loading={loading}>
           导出pdf
         </Button>
       </div>
-      <Tabs defaultActiveKey="" items={items} onChange={handleChange} />
+      <Tabs defaultActiveKey="1" items={items} onChange={handleChange} />
     </Row>
   );
 };

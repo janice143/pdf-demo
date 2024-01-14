@@ -89,7 +89,7 @@ const data: DataType[] = [
 const PdfDemo1 = () => {
   return (
     <div className="demo1-container">
-      <div id={PDF_PRINT_IDS.content}>
+      <div id={PDF_PRINT_IDS.content1}>
         <Table columns={columns} dataSource={data} />
       </div>
     </div>
